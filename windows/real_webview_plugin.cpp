@@ -7,28 +7,8 @@
 
 #include <memory>
 #include <sstream>
-#include <map>
 
 namespace real_webview {
-
-class RealWebviewPlugin : public flutter::Plugin {
- public:
-  static void RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar);
-
-  RealWebviewPlugin(flutter::PluginRegistrarWindows *registrar);
-  virtual ~RealWebviewPlugin();
-
-  RealWebviewPlugin(const RealWebviewPlugin&) = delete;
-  RealWebviewPlugin& operator=(const RealWebviewPlugin&) = delete;
-
- private:
-  void HandleMethodCall(
-      const flutter::MethodCall<flutter::EncodableValue> &method_call,
-      std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
-
-  flutter::PluginRegistrarWindows* registrar_;
-  std::map<int, std::unique_ptr<WebView2Manager>> webview_managers_;
-};
 
 // static
 void RealWebviewPlugin::RegisterWithRegistrar(

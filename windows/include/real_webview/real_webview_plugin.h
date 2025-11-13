@@ -5,14 +5,18 @@
 #include <flutter/plugin_registrar_windows.h>
 
 #include <memory>
+#include <map>
 
 namespace real_webview {
+
+// Forward declaration
+class WebView2Manager;
 
 class RealWebviewPlugin : public flutter::Plugin {
  public:
   static void RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar);
 
-  RealWebviewPlugin();
+  RealWebviewPlugin(flutter::PluginRegistrarWindows *registrar);
 
   virtual ~RealWebviewPlugin();
 
@@ -24,6 +28,9 @@ class RealWebviewPlugin : public flutter::Plugin {
   void HandleMethodCall(
       const flutter::MethodCall<flutter::EncodableValue> &method_call,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+
+  flutter::PluginRegistrarWindows* registrar_;
+  std::map<int, std::unique_ptr<WebView2Manager>> webview_managers_;
 };
 
 }  // namespace real_webview
