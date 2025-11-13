@@ -13,12 +13,6 @@ class PullToRefreshController {
     this.onRefresh,
   }) : _channel = null;
 
-  PullToRefreshController._internal(
-    this._channel,
-    this.settings,
-    this.onRefresh,
-  );
-
   /// Whether currently refreshing
   bool get isRefreshing => _isRefreshing;
 

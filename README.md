@@ -6,7 +6,7 @@ A powerful cross-platform Flutter WebView plugin using Chrome/Chromium as the ba
 
 - **🔒 Automatic DRM**: Just like Chrome - no manual license server URLs needed! Works with Netflix, Disney+, Prime, and more
 - **🌐 Chrome/Chromium Based**: Uses native WebView with Chromium on Android and WKWebView on iOS
-- **📱 Cross-Platform**: Supports Android, iOS, Web, Windows, macOS, and Linux
+- **📱 Cross-Platform**: Android ✅ | iOS ✅ | Web ✅ | Windows 🔧 | macOS 🔧 | Linux 🔧
 - **🍪 Cookie Management**: Full cookie injection and management capabilities
 - **🎬 Multi-DRM Support**: Widevine, FairPlay, PlayReady, and ClearKey DRM schemes
 - **🔄 Familiar API**: Mimics `flutter_inappwebview` for easy adoption
@@ -28,6 +28,21 @@ drmConfiguration: DRMConfiguration.widevine(
 drmConfiguration: AutoDRMHandler.createAutoDRM()
 // That's it! Works with Netflix, Disney+, Prime, etc.
 ```
+
+## Platform Support
+
+| Platform | Status | Engine | Setup Required |
+|----------|--------|--------|----------------|
+| **Android** | ✅ Ready | Chromium WebView | No |
+| **iOS** | ✅ Ready | WKWebView | No |
+| **Web** | ✅ Ready | Browser IFrame | No |
+| **Windows** | 🔧 Setup Required | WebView2 (Edge) | Yes - [Guide](PLATFORM_SETUP.md#windows-) |
+| **macOS** | 🔧 Setup Required | WKWebView | Yes - [Guide](PLATFORM_SETUP.md#macos-) |
+| **Linux** | 🔧 Setup Required | WebKitGTK | Yes - [Guide](PLATFORM_SETUP.md#linux-) |
+
+**Legend**: ✅ Ready (works out of the box) | 🔧 Setup Required (Flutter API ready, needs native code)
+
+> **Desktop Platforms**: The Flutter/Dart API layer is fully implemented for Windows, macOS, and Linux. You only need to add the native platform code following our [Platform Setup Guide](PLATFORM_SETUP.md).
 
 ## Supported DRM Schemes
 

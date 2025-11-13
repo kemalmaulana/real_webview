@@ -10,6 +10,9 @@ import 'models/permission_request.dart';
 import 'real_webview_controller.dart';
 import 'pull_to_refresh_controller.dart';
 
+// Conditional import for web
+import 'real_webview_web.dart' if (dart.library.io) 'real_webview_stub.dart' as web_impl;
+
 /// WebView widget for displaying web content using Chrome/Chromium engine
 class RealWebView extends StatefulWidget {
   /// Initial URL to load
@@ -98,65 +101,181 @@ class _RealWebViewState extends State<RealWebView> {
 
   @override
   Widget build(BuildContext context) {
-    // Platform-specific view
+    // Handle web platform separately
+    if (kIsWeb) {
+      return web_impl.RealWebViewWeb(
+        initialUrl: widget.initialUrl,
+        initialData: widget.initialData,
+        initialSettings: widget.initialSettings,
+        onWebViewCreated: widget.onWebViewCreated != null
+            ? (controller) => widget.onWebViewCreated!(controller as RealWebViewController)
+            : null,
+        onUrlChanged: widget.onUrlChanged != null
+            ? (controller, url) =>
+                widget.onUrlChanged!(controller as RealWebViewController, url)
+            : null,
+        onLoadStart: widget.onLoadStart != null
+            ? (controller, url) =>
+                widget.onLoadStart!(controller as RealWebViewController, url)
+            : null,
+        onLoadStop: widget.onLoadStop != null
+            ? (controller, url) =>
+                widget.onLoadStop!(controller as RealWebViewController, url)
+            : null,
+        onProgressChanged: widget.onProgressChanged != null
+            ? (controller, progress) =>
+                widget.onProgressChanged!(controller as RealWebViewController, progress)
+            : null,
+      );
+    }
+
+    // Platform-specific view for mobile and desktop
     final Map<String, dynamic> creationParams = {
       'initialUrl': widget.initialUrl,
       'initialData': widget.initialData,
       'initialSettings': widget.initialSettings?.toMap(),
     };
 
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return PlatformViewLink(
-        viewType: 'real_webview',
-        surfaceFactory: (context, controller) {
-          return AndroidViewSurface(
-            controller: controller as AndroidViewController,
-            gestureRecognizers: widget.gestureRecognizers ??
-                const <Factory<OneSequenceGestureRecognizer>>{},
-            hitTestBehavior: PlatformViewHitTestBehavior.opaque,
-          );
-        },
-        onCreatePlatformView: (params) {
-          return PlatformViewsService.initAndroidView(
-            id: params.id,
-            viewType: 'real_webview',
-            layoutDirection: TextDirection.ltr,
-            creationParams: creationParams,
-            creationParamsCodec: const StandardMessageCodec(),
-            onFocus: () {
-              params.onFocusChanged(true);
-            },
-          )
-            ..addOnPlatformViewCreatedListener(params.onPlatformViewCreated)
-            ..addOnPlatformViewCreatedListener(_onPlatformViewCreated)
-            ..create();
-        },
-      );
-    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      return UiKitView(
-        viewType: 'real_webview',
-        creationParams: creationParams,
-        creationParamsCodec: const StandardMessageCodec(),
-        gestureRecognizers: widget.gestureRecognizers,
-        onPlatformViewCreated: _onPlatformViewCreated,
-      );
-    } else if (defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux) {
-      // For desktop platforms, we'll use a placeholder for now
-      // In production, you'd implement platform-specific views
-      return Container(
-        color: Colors.white,
-        child: const Center(
-          child: Text('WebView not yet implemented for this platform'),
-        ),
-      );
-    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return PlatformViewLink(
+          viewType: 'real_webview',
+          surfaceFactory: (context, controller) {
+            return AndroidViewSurface(
+              controller: controller as AndroidViewController,
+              gestureRecognizers: widget.gestureRecognizers ??
+                  const <Factory<OneSequenceGestureRecognizer>>{},
+              hitTestBehavior: PlatformViewHitTestBehavior.opaque,
+            );
+          },
+          onCreatePlatformView: (params) {
+            return PlatformViewsService.initAndroidView(
+              id: params.id,
+              viewType: 'real_webview',
+              layoutDirection: TextDirection.ltr,
+              creationParams: creationParams,
+              creationParamsCodec: const StandardMessageCodec(),
+              onFocus: () {
+                params.onFocusChanged(true);
+              },
+            )
+              ..addOnPlatformViewCreatedListener(params.onPlatformViewCreated)
+              ..addOnPlatformViewCreatedListener(_onPlatformViewCreated)
+              ..create();
+          },
+        );
 
+      case TargetPlatform.iOS:
+        return UiKitView(
+          viewType: 'real_webview',
+          creationParams: creationParams,
+          creationParamsCodec: const StandardMessageCodec(),
+          gestureRecognizers: widget.gestureRecognizers,
+          onPlatformViewCreated: _onPlatformViewCreated,
+        );
+
+      case TargetPlatform.macOS:
+        // macOS uses AppKit views
+        return AppKitView(
+          viewType: 'real_webview',
+          creationParams: creationParams,
+          creationParamsCodec: const StandardMessageCodec(),
+          onPlatformViewCreated: _onPlatformViewCreated,
+        );
+
+      case TargetPlatform.windows:
+        // Windows uses native views
+        return _buildWindowsWebView(creationParams);
+
+      case TargetPlatform.linux:
+        // Linux uses native views
+        return _buildLinuxWebView(creationParams);
+
+      default:
+        return _buildUnsupportedPlatform();
+    }
+  }
+
+  Widget _buildWindowsWebView(Map<String, dynamic> creationParams) {
+    // Windows WebView2 implementation
+    return PlatformViewLink(
+      viewType: 'real_webview',
+      surfaceFactory: (context, controller) {
+        return AndroidViewSurface(
+          controller: controller as AndroidViewController,
+          gestureRecognizers: widget.gestureRecognizers ??
+              const <Factory<OneSequenceGestureRecognizer>>{},
+          hitTestBehavior: PlatformViewHitTestBehavior.opaque,
+        );
+      },
+      onCreatePlatformView: (params) {
+        return PlatformViewsService.initExpensiveAndroidView(
+          id: params.id,
+          viewType: 'real_webview',
+          layoutDirection: TextDirection.ltr,
+          creationParams: creationParams,
+          creationParamsCodec: const StandardMessageCodec(),
+          onFocus: () {
+            params.onFocusChanged(true);
+          },
+        )
+          ..addOnPlatformViewCreatedListener(params.onPlatformViewCreated)
+          ..addOnPlatformViewCreatedListener(_onPlatformViewCreated)
+          ..create();
+      },
+    );
+  }
+
+  Widget _buildLinuxWebView(Map<String, dynamic> creationParams) {
+    // Linux WebKitGTK implementation
+    return PlatformViewLink(
+      viewType: 'real_webview',
+      surfaceFactory: (context, controller) {
+        return AndroidViewSurface(
+          controller: controller as AndroidViewController,
+          gestureRecognizers: widget.gestureRecognizers ??
+              const <Factory<OneSequenceGestureRecognizer>>{},
+          hitTestBehavior: PlatformViewHitTestBehavior.opaque,
+        );
+      },
+      onCreatePlatformView: (params) {
+        return PlatformViewsService.initExpensiveAndroidView(
+          id: params.id,
+          viewType: 'real_webview',
+          layoutDirection: TextDirection.ltr,
+          creationParams: creationParams,
+          creationParamsCodec: const StandardMessageCodec(),
+          onFocus: () {
+            params.onFocusChanged(true);
+          },
+        )
+          ..addOnPlatformViewCreatedListener(params.onPlatformViewCreated)
+          ..addOnPlatformViewCreatedListener(_onPlatformViewCreated)
+          ..create();
+      },
+    );
+  }
+
+  Widget _buildUnsupportedPlatform() {
     return Container(
       color: Colors.white,
-      child: const Center(
-        child: Text('WebView not supported on this platform'),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            const Text(
+              'WebView not supported on this platform',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Current platform: ${defaultTargetPlatform.name}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
       ),
     );
   }
