@@ -42,12 +42,30 @@ class LegacyMigrationExample extends StatefulWidget {
 
 class _LegacyMigrationExampleState extends State<LegacyMigrationExample> {
   RealWebViewController? _controller;
+  PullToRefreshController? _pullToRefreshController;
   bool _isLoading = true;
   int _progress = 0;
   bool _isDesktopMode = false;
   String? _currentUrl;
   bool _canGoBack = false;
   bool _canGoForward = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Initialize pull-to-refresh controller
+    _pullToRefreshController = PullToRefreshController(
+      settings: const PullToRefreshSettings(
+        enabled: true,
+        color: PullToRefreshColor(alpha: 255, red: 33, green: 150, blue: 243),
+      ),
+      onRefresh: () async {
+        await _controller?.reload();
+        await _pullToRefreshController?.endRefreshing();
+      },
+    );
+  }
 
   // User agents matching legacy implementation
   static const String _userAgentMobile =
@@ -98,6 +116,7 @@ class _LegacyMigrationExampleState extends State<LegacyMigrationExample> {
           Expanded(
             child: RealWebView(
               initialUrl: widget.url,
+              pullToRefreshController: _pullToRefreshController,
               initialSettings: WebViewSettings(
                 javaScriptEnabled: true,
                 domStorageEnabled: true,
@@ -168,6 +187,28 @@ class _LegacyMigrationExampleState extends State<LegacyMigrationExample> {
                   debugPrint('[DRM] ${message.message}');
                 }
               },
+              onDownloadStart: (controller, request) {
+                // Handle download requests (replaces onDownloadStartRequest)
+                _showSnackBar('Download: ${request.suggestedFilename ?? request.url}');
+                _handleDownload(request.url);
+              },
+              shouldOverrideUrlLoading: (controller, action) async {
+                // Handle URL navigation decisions
+                debugPrint('[Navigation] ${action.url} (${action.navigationType})');
+
+                // Example: Block external navigation
+                if (action.url.startsWith('intent://') ||
+                    action.url.startsWith('market://')) {
+                  _showSnackBar('Blocked: ${action.url}');
+                  return NavigationActionPolicy.cancel;
+                }
+
+                return NavigationActionPolicy.allow;
+              },
+              onPermissionRequest: (controller, request) {
+                // Handle permission requests (camera, microphone, location, etc.)
+                _showPermissionDialog(request);
+              },
             ),
           ),
 
@@ -230,7 +271,7 @@ class _LegacyMigrationExampleState extends State<LegacyMigrationExample> {
     return CookieSameSitePolicy.noRestriction;
   }
 
-  /// Set up download handlers via JavaScript
+  /// Set up download handlers via User Scripts (at document start)
   Future<void> _setupDownloadHandlers() async {
     // Add JavaScript handler for download notifications
     await _controller?.addJavaScriptHandler(
@@ -243,24 +284,28 @@ class _LegacyMigrationExampleState extends State<LegacyMigrationExample> {
       },
     );
 
-    // Inject download detection script
-    await _controller?.evaluateJavascript(
-      source: '''
-        (function() {
-          // Intercept clicks on download links
-          document.addEventListener('click', function(e) {
-            var target = e.target;
-            while (target && target.tagName !== 'A') {
-              target = target.parentElement;
-            }
+    // Inject download detection script using User Script (NEW!)
+    await _controller?.addUserScript(
+      UserScript(
+        source: '''
+          (function() {
+            // Intercept clicks on download links
+            document.addEventListener('click', function(e) {
+              var target = e.target;
+              while (target && target.tagName !== 'A') {
+                target = target.parentElement;
+              }
 
-            if (target && target.download) {
-              e.preventDefault();
-              window.flutter_inappwebview.callHandler('downloadHandler', target.href);
-            }
-          }, true);
-        })();
-      ''',
+              if (target && target.download) {
+                e.preventDefault();
+                window.flutter_inappwebview.callHandler('downloadHandler', target.href);
+              }
+            }, true);
+          })();
+        ''',
+        injectionTime: UserScriptInjectionTime.atDocumentStart,
+        groupName: 'downloadHandler',
+      ),
     );
   }
 
@@ -530,6 +575,58 @@ class _LegacyMigrationExampleState extends State<LegacyMigrationExample> {
               Navigator.pop(context);
               _toggleUserAgent();
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Show permission request dialog
+  void _showPermissionDialog(PermissionRequest request) {
+    if (!mounted) return;
+
+    final resourceNames = request.resources.map((r) {
+      switch (r) {
+        case PermissionResourceType.camera:
+          return 'Camera';
+        case PermissionResourceType.microphone:
+          return 'Microphone';
+        case PermissionResourceType.geolocation:
+          return 'Location';
+        case PermissionResourceType.mediaId:
+          return 'Media (Camera/Microphone)';
+        default:
+          return r.toString();
+      }
+    }).join(', ');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Permission Request'),
+        content: Text(
+          '${request.origin}\n\nwants to access:\n$resourceNames',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _controller?.respondToPermissionRequest(
+                request.requestId,
+                PermissionResponse.deny,
+              );
+              Navigator.pop(context);
+            },
+            child: const Text('Deny'),
+          ),
+          TextButton(
+            onPressed: () {
+              _controller?.respondToPermissionRequest(
+                request.requestId,
+                PermissionResponse.grant,
+              );
+              Navigator.pop(context);
+            },
+            child: const Text('Allow'),
           ),
         ],
       ),

@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'models/webview_settings.dart';
+import 'models/user_script.dart';
+import 'models/download_request.dart';
+import 'models/navigation_action.dart';
+import 'models/permission_request.dart';
 import 'cookie_manager/cookie_manager.dart';
 
 /// Controller for managing WebView instances
@@ -45,6 +49,25 @@ class RealWebViewController {
           ConsoleMessage.fromMap(Map<String, dynamic>.from(call.arguments)),
         );
         break;
+      case 'onDownloadStart':
+        _onDownloadStartController.add(
+          DownloadRequest.fromMap(Map<String, dynamic>.from(call.arguments)),
+        );
+        break;
+      case 'onPermissionRequest':
+        _onPermissionRequestController.add(
+          PermissionRequest.fromMap(Map<String, dynamic>.from(call.arguments)),
+        );
+        break;
+      case 'shouldOverrideUrlLoading':
+        if (_shouldOverrideUrlLoading != null) {
+          final action = NavigationAction.fromMap(
+            Map<String, dynamic>.from(call.arguments),
+          );
+          final policy = await _shouldOverrideUrlLoading!(action);
+          return policy.index;
+        }
+        return NavigationActionPolicy.allow.index;
     }
   }
 
@@ -55,6 +78,14 @@ class RealWebViewController {
   final _onLoadErrorController = StreamController<WebViewError>.broadcast();
   final _onConsoleMessageController =
       StreamController<ConsoleMessage>.broadcast();
+  final _onDownloadStartController =
+      StreamController<DownloadRequest>.broadcast();
+  final _onPermissionRequestController =
+      StreamController<PermissionRequest>.broadcast();
+
+  // Callbacks for synchronous decisions
+  Future<NavigationActionPolicy> Function(NavigationAction)?
+      _shouldOverrideUrlLoading;
 
   /// Stream of URL changes
   Stream<String> get onUrlChanged => _onUrlChangedController.stream;
@@ -74,6 +105,14 @@ class RealWebViewController {
   /// Stream of console messages from web page
   Stream<ConsoleMessage> get onConsoleMessage =>
       _onConsoleMessageController.stream;
+
+  /// Stream of download start events
+  Stream<DownloadRequest> get onDownloadStart =>
+      _onDownloadStartController.stream;
+
+  /// Stream of permission request events
+  Stream<PermissionRequest> get onPermissionRequest =>
+      _onPermissionRequestController.stream;
 
   /// Load a URL in the WebView
   Future<void> loadUrl({
@@ -238,6 +277,46 @@ class RealWebViewController {
     return result ?? 1.0;
   }
 
+  /// Add user script for injection
+  Future<void> addUserScript(UserScript userScript) async {
+    await _channel.invokeMethod('addUserScript', userScript.toMap());
+  }
+
+  /// Remove user script by group name
+  Future<void> removeUserScriptsByGroupName(String groupName) async {
+    await _channel.invokeMethod('removeUserScriptsByGroupName', {
+      'groupName': groupName,
+    });
+  }
+
+  /// Remove all user scripts
+  Future<void> removeAllUserScripts() async {
+    await _channel.invokeMethod('removeAllUserScripts');
+  }
+
+  /// Set callback for URL loading decisions
+  void setShouldOverrideUrlLoading(
+    Future<NavigationActionPolicy> Function(NavigationAction) callback,
+  ) {
+    _shouldOverrideUrlLoading = callback;
+  }
+
+  /// Respond to permission request
+  Future<void> respondToPermissionRequest(
+    String requestId,
+    PermissionResponse response,
+  ) async {
+    await _channel.invokeMethod('respondToPermissionRequest', {
+      'requestId': requestId,
+      'response': response.index,
+    });
+  }
+
+  /// Enable/disable pull-to-refresh
+  Future<void> setPullToRefreshEnabled(bool enabled) async {
+    await _channel.invokeMethod('setPullToRefreshEnabled', enabled);
+  }
+
   /// Dispose the controller
   void dispose() {
     _onUrlChangedController.close();
@@ -246,6 +325,8 @@ class RealWebViewController {
     _onLoadStartController.close();
     _onLoadErrorController.close();
     _onConsoleMessageController.close();
+    _onDownloadStartController.close();
+    _onPermissionRequestController.close();
   }
 }
 

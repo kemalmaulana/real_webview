@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'models/webview_settings.dart';
+import 'models/download_request.dart';
+import 'models/navigation_action.dart';
+import 'models/permission_request.dart';
 import 'real_webview_controller.dart';
+import 'pull_to_refresh_controller.dart';
 
 /// WebView widget for displaying web content using Chrome/Chromium engine
 class RealWebView extends StatefulWidget {
@@ -45,6 +49,24 @@ class RealWebView extends StatefulWidget {
           RealWebViewController controller, ConsoleMessage message)?
       onConsoleMessage;
 
+  /// Callback when download starts
+  final void Function(
+          RealWebViewController controller, DownloadRequest request)?
+      onDownloadStart;
+
+  /// Callback for URL loading decisions
+  final Future<NavigationActionPolicy> Function(
+          RealWebViewController controller, NavigationAction action)?
+      shouldOverrideUrlLoading;
+
+  /// Callback when permission is requested
+  final void Function(
+          RealWebViewController controller, PermissionRequest request)?
+      onPermissionRequest;
+
+  /// Pull-to-refresh controller
+  final PullToRefreshController? pullToRefreshController;
+
   /// Gesture recognizers
   final Set<Factory<OneSequenceGestureRecognizer>>? gestureRecognizers;
 
@@ -60,6 +82,10 @@ class RealWebView extends StatefulWidget {
     this.onProgressChanged,
     this.onLoadError,
     this.onConsoleMessage,
+    this.onDownloadStart,
+    this.shouldOverrideUrlLoading,
+    this.onPermissionRequest,
+    this.pullToRefreshController,
     this.gestureRecognizers,
   });
 
@@ -173,6 +199,24 @@ class _RealWebViewState extends State<RealWebView> {
     if (widget.onConsoleMessage != null) {
       controller.onConsoleMessage.listen((message) {
         widget.onConsoleMessage?.call(controller, message);
+      });
+    }
+
+    if (widget.onDownloadStart != null) {
+      controller.onDownloadStart.listen((request) {
+        widget.onDownloadStart?.call(controller, request);
+      });
+    }
+
+    if (widget.onPermissionRequest != null) {
+      controller.onPermissionRequest.listen((request) {
+        widget.onPermissionRequest?.call(controller, request);
+      });
+    }
+
+    if (widget.shouldOverrideUrlLoading != null) {
+      controller.setShouldOverrideUrlLoading((action) async {
+        return await widget.shouldOverrideUrlLoading!(controller, action);
       });
     }
 
